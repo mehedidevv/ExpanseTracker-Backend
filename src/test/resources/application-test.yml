@@ -1,0 +1,19 @@
+spring:
+  flyway:
+    clean-disabled: true
+
+app:
+  scheduling:
+    enabled: false
+  mail:
+    enabled: false          # tests capture emails in memory (support/CapturingMailService)
+    verify-domain: false    # no DNS lookups in tests (example.com has a null MX)
+  otp:
+    resend-cooldown: 0s
+  jwt:
+    secret: test-secret-test-secret-test-secret-test-secret-0123456789
+
+logging:
+  level:
+    root: warn
+    org.springframework.boot.test: warn

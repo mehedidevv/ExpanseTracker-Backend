@@ -1,0 +1,1647 @@
+{
+  "info": {
+    "_postman_id": "1358d496-18d7-4fee-85db-d70419250bd8",
+    "name": "Expense Tracker API",
+    "description": "REST API for the Expense Tracker backend (prefix `/api/v1`).\n\n**Quick start**\n1. Start the app (`./mvnw spring-boot:run`).\n2. Run `Auth → Register` (or `Login`). Tokens are saved automatically to collection variables.\n3. Run `Categories → List` to capture default category ids, then any other request.\n\nEvery request inherits `Bearer {{accessToken}}` from the collection unless marked No Auth.\nYou can run the whole collection top-to-bottom with the Collection Runner: it is ordered as a full scenario.\n\nSign-up needs an email code: run Register, put the code from your inbox (or the server log when MAIL_ENABLED=false) into the `otp` collection variable, then run Verify Email. After that, run the other folders in order.\n\nEvery response has the same envelope: success, status, message, data (on success), code + fieldErrors (on error), timestamp, path. Scripts read values from `data`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get(\"email\")) {",
+          "  pm.collectionVariables.set(\"email\", `user${Date.now()}@example.com`);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1"
+    },
+    {
+      "key": "email",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": "password123"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "foodCategoryId",
+      "value": ""
+    },
+    {
+      "key": "salaryCategoryId",
+      "value": ""
+    },
+    {
+      "key": "categoryId",
+      "value": ""
+    },
+    {
+      "key": "transactionId",
+      "value": ""
+    },
+    {
+      "key": "budgetId",
+      "value": ""
+    },
+    {
+      "key": "year",
+      "value": "2026"
+    },
+    {
+      "key": "month",
+      "value": "11"
+    },
+    {
+      "key": "otp",
+      "value": ""
+    },
+    {
+      "key": "resetToken",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Creates an UNVERIFIED user and emails a 6-digit code. No tokens yet. 409 if the email is already verified; registering again while unverified sends a new code.\n\nNext: copy the code from the email (or from the server log when MAIL_ENABLED=false) into the collection variable `otp`, then run Verify Email.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"fullName\": \"Demo User\",\n  \"currencyCode\": \"BDT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resend OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/resend-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "resend-otp"
+              ]
+            },
+            "description": "Sends a new code and invalidates the old one. purpose: EMAIL_VERIFICATION (default) or PASSWORD_RESET. Same 200 answer for unknown emails. 429 if asked again within 60 s.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"purpose\": \"EMAIL_VERIFICATION\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 or 429 (cooldown)\", () => pm.expect(pm.response.code).to.be.oneOf([200, 429]));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-email",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "verify-email"
+              ]
+            },
+            "description": "Set the collection variable `otp` to the code from the email first. Returns tokens (user is now logged in). 400 wrong/expired code, 429 after 5 wrong tries.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{otp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json().data;",
+                  "pm.collectionVariables.set(\"accessToken\", j.accessToken);",
+                  "pm.collectionVariables.set(\"refreshToken\", j.refreshToken);",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "FR-A2. 401 on wrong email/password. 403 EMAIL_NOT_VERIFIED if the email is not verified yet.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json().data;",
+                  "pm.collectionVariables.set(\"accessToken\", j.accessToken);",
+                  "pm.collectionVariables.set(\"refreshToken\", j.refreshToken);",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "FR-A3. Rotation: the old refresh token is revoked. Re-using a revoked token revokes ALL the user's tokens.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json().data;",
+                  "pm.collectionVariables.set(\"accessToken\", j.accessToken);",
+                  "pm.collectionVariables.set(\"refreshToken\", j.refreshToken);",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "User",
+      "item": [
+        {
+          "name": "Get my profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            },
+            "description": "FR-U1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update my profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            },
+            "description": "FR-U2",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Demo User Updated\",\n  \"currencyCode\": \"BDT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/me/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me",
+                "password"
+              ]
+            },
+            "description": "FR-U3. Returns 204 and revokes all refresh tokens (logs out every device). Access token keeps working until it expires.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{password}}\",\n  \"newPassword\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login again (after password change)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json().data;",
+                  "pm.collectionVariables.set(\"accessToken\", j.accessToken);",
+                  "pm.collectionVariables.set(\"refreshToken\", j.refreshToken);",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "List categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/categories?",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "EXPENSE",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "FR-C1. System defaults + own. Optional `type=EXPENSE|INCOME`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json().data;",
+                  "const food = list.find(c => c.systemDefault && c.name === \"Food\" && c.type === \"EXPENSE\");",
+                  "const salary = list.find(c => c.systemDefault && c.name === \"Salary\" && c.type === \"INCOME\");",
+                  "pm.test(\"Defaults present\", () => { pm.expect(food).to.be.ok; pm.expect(salary).to.be.ok; });",
+                  "pm.collectionVariables.set(\"foodCategoryId\", food.id);",
+                  "pm.collectionVariables.set(\"salaryCategoryId\", salary.id);",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories"
+              ]
+            },
+            "description": "FR-C2. Name must be unique per type (case-insensitive, including defaults).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pets\",\n  \"type\": \"EXPENSE\",\n  \"icon\": \"pets\",\n  \"color\": \"#FF9800\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"categoryId\", pm.response.json().data.id);",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories",
+                "{{categoryId}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pet care\",\n  \"type\": \"EXPENSE\",\n  \"icon\": \"pets\",\n  \"color\": \"#FF5722\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update default category (403)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/categories/{{foodCategoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories",
+                "{{foodCategoryId}}"
+              ]
+            },
+            "description": "System defaults are read-only.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Groceries\",\n  \"type\": \"EXPENSE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Create expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "FR-T1. amount > 0, max 2 decimals. type must equal the category's type.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"EXPENSE\",\n  \"amount\": 250.5,\n  \"categoryId\": \"{{foodCategoryId}}\",\n  \"transactionDate\": \"{{year}}-{{month}}-05\",\n  \"note\": \"Lunch with team\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"transactionId\", pm.response.json().data.id);",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create expense in custom category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"EXPENSE\",\n  \"amount\": 80,\n  \"categoryId\": \"{{categoryId}}\",\n  \"transactionDate\": \"{{year}}-{{month}}-07\",\n  \"note\": \"Cat food\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create income",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"INCOME\",\n  \"amount\": 50000,\n  \"categoryId\": \"{{salaryCategoryId}}\",\n  \"transactionDate\": \"{{year}}-{{month}}-01\",\n  \"note\": \"Salary\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create with mismatched type (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"EXPENSE\",\n  \"amount\": 10,\n  \"categoryId\": \"{{salaryCategoryId}}\",\n  \"transactionDate\": \"{{year}}-{{month}}-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get transaction",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions",
+                "{{transactionId}}"
+              ]
+            },
+            "description": "FR-T2"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?page=0&size=20&sort=transactionDate,desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sort",
+                  "value": "transactionDate,desc"
+                },
+                {
+                  "key": "type",
+                  "value": "EXPENSE",
+                  "disabled": true
+                },
+                {
+                  "key": "categoryId",
+                  "value": "{{foodCategoryId}}",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "{{year}}-{{month}}-01",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "{{year}}-{{month}}-30",
+                  "disabled": true
+                },
+                {
+                  "key": "minAmount",
+                  "value": "10",
+                  "disabled": true
+                },
+                {
+                  "key": "maxAmount",
+                  "value": "1000",
+                  "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "lunch",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "FR-T3. Enable the optional filters you need. Sortable: transactionDate, amount, createdAt, type. size max 100."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Paged shape\", () => pm.expect(pm.response.json().data).to.have.keys(\"content\",\"page\",\"size\",\"totalElements\",\"totalPages\"));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update transaction",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions",
+                "{{transactionId}}"
+              ]
+            },
+            "description": "FR-T4",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"EXPENSE\",\n  \"amount\": 300.0,\n  \"categoryId\": \"{{foodCategoryId}}\",\n  \"transactionDate\": \"{{year}}-{{month}}-05\",\n  \"note\": \"Lunch with team (corrected)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Budgets",
+      "item": [
+        {
+          "name": "Create overall budget",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/budgets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "budgets"
+              ]
+            },
+            "description": "FR-B1. categoryId null = overall monthly budget.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": null,\n  \"amount\": 30000,\n  \"year\": {{year}},\n  \"month\": {{month}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"budgetId\", pm.response.json().data.id);",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create category budget",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/budgets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "budgets"
+              ]
+            },
+            "description": "Only EXPENSE categories. One budget per (category, year, month).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": \"{{foodCategoryId}}\",\n  \"amount\": 5000,\n  \"year\": {{year}},\n  \"month\": {{month}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List budgets for month",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/budgets?year={{year}}&month={{month}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "budgets"
+              ],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "{{year}}"
+                },
+                {
+                  "key": "month",
+                  "value": "{{month}}"
+                }
+              ]
+            },
+            "description": "FR-B2. Includes spent and remaining."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update budget",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/budgets/{{budgetId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "budgets",
+                "{{budgetId}}"
+              ]
+            },
+            "description": "FR-B3",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": null,\n  \"amount\": 35000,\n  \"year\": {{year}},\n  \"month\": {{month}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/summary?from={{year}}-01-01&to={{year}}-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reports",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{year}}-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "{{year}}-12-31"
+                }
+              ]
+            },
+            "description": "FR-R1. Range is inclusive."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Expense by category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/by-category?from={{year}}-01-01&to={{year}}-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reports",
+                "by-category"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{year}}-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "{{year}}-12-31"
+                }
+              ]
+            },
+            "description": "FR-R2. Sorted by amount desc."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Monthly trend",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/monthly?year={{year}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reports",
+                "monthly"
+              ],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "{{year}}"
+                }
+              ]
+            },
+            "description": "FR-R3. Always 12 entries."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"12 months\", () => pm.expect(pm.response.json().data).to.have.lengthOf(12));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "description": "Deletes what the scenario created. Run last.",
+      "item": [
+        {
+          "name": "Delete budget",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/budgets/{{budgetId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "budgets",
+                "{{budgetId}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete transaction",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions",
+                "{{transactionId}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete category in use (409)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories",
+                "{{categoryId}}"
+              ]
+            },
+            "description": "The custom category still has the 'Cat food' transaction."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "FR-A4. Revokes the refresh token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Password reset",
+      "description": "Forgot password flow: Forgot password → (code by email) → Verify reset OTP → Reset password. Run it on its own, after the Auth folder.",
+      "item": [
+        {
+          "name": "Forgot password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "description": "Emails a password-reset code. Always 200 with the same message (even for unknown emails). Next: put the code in `otp` and run Verify reset OTP.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify reset OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-reset-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "verify-reset-otp"
+              ]
+            },
+            "description": "Checks the reset code and returns a single-use resetToken (valid 15 min), saved to the `resetToken` variable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{otp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"resetToken\", pm.response.json().data.resetToken);",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reset password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            },
+            "description": "Sets the new password (here reusing {{password}} so the rest of the collection keeps working). Signs out all devices (revokes refresh tokens). 204.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resetToken\": \"{{resetToken}}\",\n  \"newPassword\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Standard envelope\", () => { const b = pm.response.json(); pm.expect(b).to.have.property(\"success\"); pm.expect(b.status).to.eql(pm.response.code); pm.expect(b.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Actuator health",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/actuator/health",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+spring:
+  application:
+    name: expense-tracker
+  config:
+    import: optional:file:.env[.properties]   # local secrets, git-ignored
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/expense_tracker}
+    username: ${DB_USERNAME:expense}
+    password: ${DB_PASSWORD:expense}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate          # schema is owned by Flyway only
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    web:
+      pageable:
+        default-page-size: 20
+        max-page-size: 100
+  jackson:
+    time-zone: UTC
+  mail:                                       # SMTP (used only when app.mail.enabled=true)
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+server:
+  port: ${PORT:8080}
+  error:
+    include-stacktrace: never
+    include-message: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+  jwt:
+    secret: ${JWT_SECRET:}                    # >= 32 bytes, required
+    issuer: expense-tracker
+    access-token-ttl: ${JWT_ACCESS_TTL:15m}
+    refresh-token-ttl: ${JWT_REFRESH_TTL:7d}
+  mail:
+    enabled: ${MAIL_ENABLED:false}            # false = OTP emails are printed to the log (dev only)
+    from: ${MAIL_FROM:${MAIL_USERNAME:no-reply@expense-tracker.local}}
+    verify-domain: ${MAIL_VERIFY_DOMAIN:true}  # reject sign-up emails whose domain cannot receive mail
+  otp:
+    length: 6
+    ttl: ${OTP_TTL:10m}                       # how long a code is valid
+    max-attempts: 5                           # wrong guesses before the code is burned
+    resend-cooldown: ${OTP_RESEND_COOLDOWN:60s}
+    reset-token-ttl: 15m                      # validity of the token returned by verify-reset-otp
+    pending-registration-ttl: ${PENDING_REGISTRATION_TTL:1h}  # unverified sign-ups are deleted after this
